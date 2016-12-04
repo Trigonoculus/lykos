@@ -48,6 +48,9 @@ def unhandled(cli, prefix, cmd, *args):
         fn.caller(cli, prefix, *args)
 
 def connect_callback(cli):
+    regaincount = 0
+    releasecount = 0
+
     @hook("endofmotd", hookid=294)
     @hook("nomotd", hookid=294)
     def prepare_stuff(cli, prefix, *args):
@@ -82,18 +85,26 @@ def connect_callback(cli):
         users.Bot.change_nick(botconfig.NICK)
 
     def mustregain(cli, server, bot_nick, nick, msg):
-        if not botconfig.PASS or bot_nick == nick:
+        if not botconfig.PASS or bot_nick == nick or regaincount > 3:
             return
-        cli.ns_regain(nick=botconfig.NICK, password=botconfig.PASS, nickserv=var.NICKSERV, command=var.NICKSERV_REGAIN_COMMAND)
+        if var.NICKSERV_REGAIN_COMMAND:
+            cli.ns_regain(nick=botconfig.NICK, password=botconfig.PASS, nickserv=var.NICKSERV, command=var.NICKSERV_REGAIN_COMMAND)
+        else:
+            cli.ns_ghost(nick=botconfig.NICK, password=botconfig.PASS, nickserv=var.NICKSERV, command=var.NICKSERV_GHOST_COMMAND)
+        # it is possible (though unlikely) that regaining the nick fails for some reason and we would loop infinitely
+        # as such, keep track of a count of how many times we regain, and after 3 times we no longer attempt to regain nicks
+        # Since we'd only be regaining on initial connect, this should be safe. The same trick is used below for release as well
+        regaincount += 1
         users.Bot.change_nick(botconfig.NICK)
 
     def mustrelease(cli, server, bot_nick, nick, msg):
-        if not botconfig.PASS or bot_nick == nick:
+        if not botconfig.PASS or bot_nick == nick or releasecount > 3:
             return # prevents the bot from trying to release without a password
-        func = cli.ns_release
-        if botconfig.USE_NICKSERV_GHOST:
-            func = cli.ns_ghost
-        func(nick=botconfig.NICK, password=botconfig.PASS, nickserv=var.NICKSERV, command=var.NICKSERV_RELEASE_COMMAND)
+        if var.NICKSERV_RELEASE_COMMAND:
+            cli.ns_release(nick=botconfig.NICK, password=botconfig.PASS, nickserv=var.NICKSERV, command=var.NICKSERV_GHOST_COMMAND)
+        else:
+            cli.ns_ghost(nick=botconfig.NICK, password=botconfig.PASS, nickserv=var.NICKSERV, command=var.NICKSERV_GHOST_COMMAND)
+        releasecount += 1
         users.Bot.change_nick(botconfig.NICK)
 
     @hook("unavailresource", hookid=239)
@@ -104,8 +115,8 @@ def connect_callback(cli):
         cli.user(botconfig.NICK, "") # TODO: can we remove this?
 
         hook.unhook(239)
-        hook("unavailresource")(mustrelease)
-        hook("nicknameinuse")(mustregain)
+        hook("unavailresource", hookid=240)(mustrelease)
+        hook("nicknameinuse", hookid=241)(mustregain)
 
     request_caps = {"account-notify", "extended-join", "multi-prefix"}
 

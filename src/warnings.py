@@ -5,7 +5,7 @@ import botconfig
 import src.settings as var
 from src import channels, db
 from src.utilities import *
-from src.decorators import cmd
+from src.decorators import cmd, COMMANDS
 from src.events import Event
 from src.messages import messages
 
@@ -480,7 +480,7 @@ def fwarn(cli, nick, chan, rest):
     #    If specified, must be prefixed with |. This means | is not a valid character for use
     #    in reasons (no escaping is performed).
 
-    params = re.split(" +", rest)
+    params = rest.split()
     target = None
     points = None
     expires = None
@@ -520,7 +520,7 @@ def fwarn(cli, nick, chan, rest):
         try:
             subcommand = params.pop(0)
         except IndexError:
-            reply(cli, nick, chan, messages["fwarn_help_syntax"])
+            reply(cli, nick, chan, messages["fwarn_usage"])
             return
         if subcommand not in ("list", "view", "add", "del", "set", "help"):
             reply(cli, nick, chan, messages["fwarn_usage"])
@@ -776,7 +776,7 @@ def fwarn(cli, nick, chan, rest):
                     changes.append(messages["fwarn_log_set_notes_new"].format(notes))
             if changes:
                 log_msg = messages["fwarn_log_set"].format(warn_id, warning["target"], nick, " | ".join(changes))
-                cli.msg(var.LOG_CHANNEL, log_msg)
+                cli.msg(var.LOG_PREFIX + var.LOG_CHANNEL, log_msg)
 
         return
 
@@ -900,7 +900,7 @@ def fwarn(cli, nick, chan, rest):
                 log_length = messages["fwarn_log_add_expiry"].format(expires)
             log_msg = messages["fwarn_log_add"].format(warn_id, target, nick, log_reason, points,
                                                        "" if points == 1 else "s", log_length)
-            cli.msg(var.LOG_CHANNEL, log_msg)
+            cli.msg(var.LOG_PREFIX + var.LOG_CHANNEL, log_msg)
 
 
 # vim: set sw=4 expandtab:
